@@ -185,13 +185,36 @@
     // API Configuration - ALL keys now securely stored in Vercel environment variables!
     // No API keys exposed in frontend code = secure! 🔒
     
-    // 📊 Full stock watchlist - optimized batching prevents rate limiting
+    // 📊 Full stock watchlist with exchange info for Google Finance links
     const WATCHLIST = [
-      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX',
-      'AMD', 'INTC', 'PYPL', 'SNAP', 'UBER', 'COIN', 'SQ', 'SHOP',
-      'ORCL', 'ADBE', 'CRM', 'PLTR'
+      { symbol: 'AAPL', exchange: 'NASDAQ' },
+      { symbol: 'MSFT', exchange: 'NASDAQ' },
+      { symbol: 'GOOGL', exchange: 'NASDAQ' },
+      { symbol: 'AMZN', exchange: 'NASDAQ' },
+      { symbol: 'TSLA', exchange: 'NASDAQ' },
+      { symbol: 'META', exchange: 'NASDAQ' },
+      { symbol: 'NVDA', exchange: 'NASDAQ' },
+      { symbol: 'NFLX', exchange: 'NASDAQ' },
+      { symbol: 'AMD', exchange: 'NASDAQ' },
+      { symbol: 'INTC', exchange: 'NASDAQ' },
+      { symbol: 'PYPL', exchange: 'NASDAQ' },
+      { symbol: 'SNAP', exchange: 'NYSE' },
+      { symbol: 'UBER', exchange: 'NYSE' },
+      { symbol: 'COIN', exchange: 'NASDAQ' },
+      { symbol: 'SQ', exchange: 'NYSE' },
+      { symbol: 'SHOP', exchange: 'NYSE' },
+      { symbol: 'ORCL', exchange: 'NYSE' },
+      { symbol: 'ADBE', exchange: 'NASDAQ' },
+      { symbol: 'CRM', exchange: 'NYSE' },
+      { symbol: 'PLTR', exchange: 'NYSE' }
       // 20 stocks total - batched loading keeps us under rate limits
+      // Exchange codes: NASDAQ, NYSE, LSE (London), TSE (Tokyo), HKEX (Hong Kong), ASX (Australia), etc.
     ];
+
+    // Helper function to generate Google Finance URL
+    const getGoogleFinanceUrl = (symbol, exchange) => {
+      return `https://www.google.com/finance/quote/${symbol}:${exchange}`;
+    };
 
     // Market Hours Helper
     class MarketHours {
@@ -481,10 +504,11 @@
             const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
             const totalBatches = Math.ceil(WATCHLIST.length / BATCH_SIZE);
             
-            console.log(`📦 Batch ${batchNumber}/${totalBatches}: ${batch.join(', ')}`);
+            console.log(`📦 Batch ${batchNumber}/${totalBatches}: ${batch.map(s => s.symbol).join(', ')}`);
             
             // Process each stock in the batch SEQUENTIALLY (not parallel) with delays
-            for (const symbol of batch) {
+            for (const stock of batch) {
+              const { symbol, exchange } = stock;
               try {
                 setLoadingProgress({ 
                   current: allStocks.length + 1, 
@@ -514,6 +538,7 @@
 
                 const stockInfo = {
                   symbol,
+                  exchange,
                   company: profile.name,
                   price: quote.c,
                   change: `${quote.dp > 0 ? '+' : ''}${quote.dp?.toFixed(2) || '0.00'}%`,
@@ -559,7 +584,7 @@
                 console.log(`✅ ${symbol} loaded successfully (${allStocks.length}/${WATCHLIST.length})`);
                 
                 // 🔧 CRITICAL: Delay between individual stocks within batch
-                if (batch.indexOf(symbol) < batch.length - 1) {
+                if (batch.indexOf(stock) < batch.length - 1) {
                   await new Promise(r => setTimeout(r, DELAY_BETWEEN_STOCKS));
                 }
 
@@ -787,7 +812,16 @@
                     <tbody className="divide-y divide-gray-600">
                       {stockData.strongBuys.map((s, i) => (
                         <tr key={i} className="hover:bg-gray-700 transition-colors">
-                          <td className="px-3 py-4"><span className="text-blue-400 font-semibold">{s.symbol}</span></td>
+                          <td className="px-3 py-4">
+                            <a 
+                              href={getGoogleFinanceUrl(s.symbol, s.exchange)} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-400 font-semibold hover:text-blue-300 hover:underline"
+                            >
+                              {s.symbol}
+                            </a>
+                          </td>
                           <td className="px-3 py-4 max-w-[120px] truncate text-xs md:text-sm">{s.company}</td>
                           <td className="px-3 py-4 font-medium">${s.price.toFixed(2)}</td>
                           <td className={`px-3 py-4 font-medium ${s.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
@@ -850,7 +884,16 @@
                     <tbody className="divide-y divide-gray-600">
                       {stockData.significantDrops.map((s, i) => (
                         <tr key={i} className="hover:bg-gray-700 transition-colors">
-                          <td className="px-3 py-4"><span className="text-blue-400 font-semibold">{s.symbol}</span></td>
+                          <td className="px-3 py-4">
+                            <a 
+                              href={getGoogleFinanceUrl(s.symbol, s.exchange)} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-400 font-semibold hover:text-blue-300 hover:underline"
+                            >
+                              {s.symbol}
+                            </a>
+                          </td>
                           <td className="px-3 py-4 max-w-[120px] truncate text-xs md:text-sm">{s.company}</td>
                           <td className="px-3 py-4 font-medium">${s.price.toFixed(2)}</td>
                           <td className={`px-3 py-4 font-medium ${s.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
@@ -909,7 +952,16 @@
                   <tbody className="divide-y divide-gray-600">
                     {stockData.allStocks.map((s, i) => (
                       <tr key={i} className="hover:bg-gray-700 transition-colors">
-                        <td className="px-3 py-4"><span className="text-blue-400 font-semibold">{s.symbol}</span></td>
+                        <td className="px-3 py-4">
+                          <a 
+                            href={getGoogleFinanceUrl(s.symbol, s.exchange)} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-blue-400 font-semibold hover:text-blue-300 hover:underline"
+                          >
+                            {s.symbol}
+                          </a>
+                        </td>
                         <td className="px-3 py-4 max-w-[120px] truncate text-xs md:text-sm">{s.company}</td>
                         <td className="px-3 py-4 font-medium">${s.price.toFixed(2)}</td>
                         <td className={`px-3 py-4 font-medium ${s.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
