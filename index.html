@@ -17,10 +17,13 @@
     // API Configuration - ALL keys now securely stored in Vercel environment variables!
     // No API keys exposed in frontend code = secure! 🔒
     
+    // ⚠️ REDUCED STOCK COUNT to avoid rate limiting
+    // Start with fewer stocks - users can add more manually
     const WATCHLIST = [
-      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX',
-      'AMD', 'INTC', 'PYPL', 'SNAP', 'UBER', 'COIN', 'SQ', 'SHOP',
-      'ORCL', 'ADBE', 'CRM', 'PLTR'
+      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 
+      'META', 'NVDA', 'NFLX', 'AMD', 'INTC'
+      // Reduced from 20 to 10 stocks to stay under rate limits
+      // Can be increased with caching improvements
     ];
 
     // Market Hours Helper
@@ -88,19 +91,32 @@
         this.historyCache = new DataCache(900000);     // 15 min for historical (don't need constant updates)
       }
 
-      async fetchWithRetry(url, retries = 3) {
+      // 🔧 IMPROVED: Better retry logic with rate limit handling
+      async fetchWithRetry(url, retries = 2) { // Reduced from 3 to 2 retries
         for (let i = 0; i < retries; i++) {
           try {
             const response = await fetch(url);
+            
+            // 🚨 CRITICAL: Stop immediately on rate limit
             if (response.status === 429) {
-              await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-              continue;
+              const errorData = await response.json().catch(() => ({}));
+              throw new Error(`Rate limit exceeded. ${errorData.message || 'Please wait and try again.'}`);
             }
+            
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
             return await response.json();
           } catch (error) {
+            // Don't retry on rate limit errors
+            if (error.message.includes('Rate limit')) {
+              throw error;
+            }
+            
             if (i === retries - 1) throw error;
-            await new Promise(r => setTimeout(r, 1000));
+            
+            // Exponential backoff with max 3 seconds
+            const delay = Math.min(1000 * Math.pow(2, i), 3000);
+            console.log(`Retry ${i + 1}/${retries} after ${delay}ms...`);
+            await new Promise(r => setTimeout(r, delay));
           }
         }
       }
@@ -266,9 +282,11 @@
       const [refreshTime, setRefreshTime] = useState(new Date());
       const [isRefreshing, setIsRefreshing] = useState(false);
       const [marketStatus, setMarketStatus] = useState(MarketHours.getStatusText());
+      const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: WATCHLIST.length });
       
       const stockService = new HybridStockService(); // No API keys needed!
 
+      // 🚀 IMPROVED: Better batching with progress tracking
       const fetchStockData = async (isInitialLoad = false) => {
         if (isInitialLoad) {
           setStockData(prev => ({ ...prev, loading: true }));
@@ -281,18 +299,35 @@
           const significantDrops = [];
           const allStocks = [];
           
-          // Process in batches to respect rate limits
-          for (let i = 0; i < WATCHLIST.length; i += 5) {
-            const batch = WATCHLIST.slice(i, i + 5);
+          // 🔧 IMPROVED BATCHING CONFIGURATION
+          const BATCH_SIZE = 3;  // Reduced from 5 to 3 stocks per batch
+          const DELAY_BETWEEN_BATCHES = 2500;  // Increased to 2.5 seconds between batches
+          const DELAY_BETWEEN_STOCKS = 600;  // 600ms delay between individual stocks
+          
+          console.log(`🔄 Loading ${WATCHLIST.length} stocks in batches of ${BATCH_SIZE}...`);
+          
+          // Process in smaller batches with longer delays
+          for (let i = 0; i < WATCHLIST.length; i += BATCH_SIZE) {
+            const batch = WATCHLIST.slice(i, i + BATCH_SIZE);
+            const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+            const totalBatches = Math.ceil(WATCHLIST.length / BATCH_SIZE);
             
-            await Promise.all(batch.map(async (symbol) => {
+            console.log(`📦 Batch ${batchNumber}/${totalBatches}: ${batch.join(', ')}`);
+            
+            // Process each stock in the batch SEQUENTIALLY (not parallel) with delays
+            for (const symbol of batch) {
               try {
+                setLoadingProgress({ 
+                  current: allStocks.length + 1, 
+                  total: WATCHLIST.length 
+                });
+                
                 // Get data from both APIs
                 const { quote, profile, history } = await stockService.getStockData(symbol);
 
                 if (!quote || quote.c === 0 || !profile?.name) {
-                  console.warn(`Skipping ${symbol} - invalid data`);
-                  return;
+                  console.warn(`⚠️ Skipping ${symbol} - invalid data`);
+                  continue;
                 }
 
                 // Calculate technical indicators from Tiingo historical data
@@ -347,14 +382,33 @@
                   });
                 }
 
-              } catch (error) {
-                console.error(`Error processing ${symbol}:`, error);
-              }
-            }));
+                console.log(`✅ ${symbol} loaded successfully (${allStocks.length}/${WATCHLIST.length})`);
+                
+                // 🔧 CRITICAL: Delay between individual stocks within batch
+                if (batch.indexOf(symbol) < batch.length - 1) {
+                  await new Promise(r => setTimeout(r, DELAY_BETWEEN_STOCKS));
+                }
 
-            // Rate limiting between batches
-            if (i + 5 < WATCHLIST.length) {
-              await new Promise(r => setTimeout(r, 1000));
+              } catch (error) {
+                console.error(`❌ Error processing ${symbol}:`, error);
+                
+                // If we hit rate limit, show error and stop
+                if (error.message.includes('Rate limit')) {
+                  setStockData(prev => ({
+                    ...prev,
+                    loading: false,
+                    error: `⚠️ Rate limit reached after loading ${allStocks.length} stocks. Please wait a few minutes before refreshing.`
+                  }));
+                  setIsRefreshing(false);
+                  return; // Stop processing
+                }
+              }
+            }
+
+            // 🔧 CRITICAL: Longer delay between batches (except for last batch)
+            if (i + BATCH_SIZE < WATCHLIST.length) {
+              console.log(`⏳ Waiting ${DELAY_BETWEEN_BATCHES/1000}s before next batch...`);
+              await new Promise(r => setTimeout(r, DELAY_BETWEEN_BATCHES));
             }
           }
 
@@ -362,6 +416,8 @@
           strongBuys.sort((a, b) => b.techScore - a.techScore);
           significantDrops.sort((a, b) => b.dropValue - a.dropValue);
           allStocks.sort((a, b) => b.changeValue - a.changeValue);
+
+          console.log(`✅ Successfully loaded ${allStocks.length} stocks!`);
 
           setStockData({
             strongBuys,
@@ -378,10 +434,13 @@
           setStockData(prev => ({
             ...prev,
             loading: false,
-            error: 'Failed to fetch stock data. Please check your API configuration.'
+            error: error.message.includes('Rate limit') 
+              ? '⚠️ Rate limit exceeded. Please wait a few minutes before refreshing.'
+              : 'Failed to fetch stock data. Please check your API configuration.'
           }));
         } finally {
           setIsRefreshing(false);
+          setLoadingProgress({ current: 0, total: WATCHLIST.length });
         }
       };
 
@@ -426,8 +485,24 @@
             <div className="text-center">
               <div className="text-6xl mb-4 animate-pulse">📊</div>
               <p className="text-xl">Loading live stock data...</p>
-              <p className="text-sm text-gray-400 mt-2">Analyzing {WATCHLIST.length} stocks</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Analyzing {WATCHLIST.length} stocks • Processing in batches
+              </p>
+              {loadingProgress.current > 0 && (
+                <div className="mt-4">
+                  <div className="bg-gray-700 rounded-full h-2 w-64 mx-auto">
+                    <div 
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(loadingProgress.current / loadingProgress.total) * 100}%` }}
+                    ></div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {loadingProgress.current} / {loadingProgress.total} stocks loaded
+                  </p>
+                </div>
+              )}
               <p className="text-xs text-gray-500 mt-4">🔒 Secure serverless API - All keys protected</p>
+              <p className="text-xs text-gray-500 mt-1">⏱️ Rate-limited batching to respect API limits</p>
             </div>
           </div>
         );
@@ -438,7 +513,7 @@
           {/* Updating Banner */}
           {isRefreshing && (
             <div className="fixed top-0 left-0 right-0 bg-blue-600 text-white text-center py-2 z-50 animate-pulse">
-              🔄 Updating stock data...
+              🔄 Updating stock data... {loadingProgress.current > 0 && `(${loadingProgress.current}/${loadingProgress.total})`}
             </div>
           )}
 
@@ -697,6 +772,7 @@
             </p>
             <p>Tech Score: RSI + Momentum + Moving Averages + Volatility + Market Cap</p>
             <p className="text-green-400 font-medium">🔒 Fully Secure - All API keys protected via serverless!</p>
+            <p className="text-yellow-400 font-medium">⚡ Batched Loading - Respects API rate limits (3 stocks/batch, 2.5s delay)</p>
           </div>
         </div>
       );
