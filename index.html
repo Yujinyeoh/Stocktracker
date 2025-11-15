@@ -15,11 +15,10 @@
     const { useState, useEffect } = React;
     
     // API Configuration
-    const FINNHUB_API_KEY = 'd4c75u9r01qudf6gvp8gd4c75u9r01qudf6gvp90'; // Your existing key
-    const TIINGO_API_KEY = '61479335403c99d6fa7f34d43e65ac5cc8bb9691'; // Get free key at https://www.tiingo.com/account/api/token
+    const FINNHUB_API_KEY = 'd4c75u9r01qudf6gvp8gd4c75u9r01qudf6gvp90'; // Your existing key (works directly)
+    // Tiingo API key is now securely stored in Vercel environment variables
     
     const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
-    const TIINGO_BASE_URL = 'https://api.tiingo.com';
     
     const WATCHLIST = [
       'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX',
@@ -81,11 +80,10 @@
       }
     }
 
-    // Hybrid API Service - Finnhub for quotes, Tiingo for historical
+    // Hybrid API Service - Finnhub for quotes, Tiingo for historical (via serverless)
     class HybridStockService {
-      constructor(finnhubKey, tiingoKey) {
+      constructor(finnhubKey) {
         this.finnhubKey = finnhubKey;
-        this.tiingoKey = tiingoKey;
         
         // Separate caches for different data types
         this.quoteCache = new DataCache(30000);        // 30 sec for quotes (frequent updates)
@@ -110,7 +108,7 @@
         }
       }
 
-      // Finnhub: Get real-time quote
+      // Finnhub: Get real-time quote (direct call - no CORS issues)
       async getFinnhubQuote(symbol) {
         const cached = this.quoteCache.get(symbol);
         if (cached) return cached;
@@ -121,7 +119,7 @@
         return data;
       }
 
-      // Finnhub: Get company profile
+      // Finnhub: Get company profile (direct call - no CORS issues)
       async getFinnhubProfile(symbol) {
         const cached = this.profileCache.get(symbol);
         if (cached) return cached;
@@ -132,7 +130,7 @@
         return data;
       }
 
-      // Tiingo: Get historical prices (90 days)
+      // Tiingo: Get historical prices via serverless function (no CORS issues!)
       async getTiingoHistory(symbol, days = 90) {
         const cacheKey = `${symbol}-hist-${days}`;
         const cached = this.historyCache.get(cacheKey);
@@ -142,7 +140,8 @@
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
 
-        const url = `${TIINGO_BASE_URL}/tiingo/daily/${symbol}/prices?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}&token=${this.tiingoKey}`;
+        // ✅ Call YOUR serverless function instead of Tiingo directly (avoids CORS!)
+        const url = `/api/stock-data?symbol=${symbol}&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`;
         const data = await this.fetchWithRetry(url);
         this.historyCache.set(cacheKey, data);
         return data;
@@ -269,7 +268,7 @@
       const [isRefreshing, setIsRefreshing] = useState(false);
       const [marketStatus, setMarketStatus] = useState(MarketHours.getStatusText());
       
-      const stockService = new HybridStockService(FINNHUB_API_KEY, TIINGO_API_KEY);
+      const stockService = new HybridStockService(FINNHUB_API_KEY);
 
       const fetchStockData = async (isInitialLoad = false) => {
         if (isInitialLoad) {
@@ -380,7 +379,7 @@
           setStockData(prev => ({
             ...prev,
             loading: false,
-            error: 'Failed to fetch stock data. Please check your API keys.'
+            error: 'Failed to fetch stock data. Please check your API configuration.'
           }));
         } finally {
           setIsRefreshing(false);
@@ -429,7 +428,7 @@
               <div className="text-6xl mb-4 animate-pulse">📊</div>
               <p className="text-xl">Loading live stock data...</p>
               <p className="text-sm text-gray-400 mt-2">Analyzing {WATCHLIST.length} stocks</p>
-              <p className="text-xs text-gray-500 mt-4">Using Finnhub + Tiingo APIs</p>
+              <p className="text-xs text-gray-500 mt-4">Finnhub (quotes) + Tiingo (historical via serverless)</p>
             </div>
           </div>
         );
@@ -686,7 +685,7 @@
 
           <div className="mt-8 text-center text-gray-400 text-xs space-y-2">
             <p>
-              💰 Live Data: Finnhub (quotes) + Tiingo (historical) • Auto-refresh: {
+              💰 Live Data: Finnhub (quotes) + Tiingo (historical via serverless) • Auto-refresh: {
                 MarketHours.isWeekend() ? '1 hour (weekend)' : 
                 MarketHours.isMarketOpen() ? '2 min (market open)' : 
                 '15 min (after hours)'
@@ -698,11 +697,7 @@
               <span className="text-red-400"> &gt;70</span> = Overbought
             </p>
             <p>Tech Score: RSI + Momentum + Moving Averages + Volatility + Market Cap</p>
-            <p className="text-blue-400">
-              <a href="https://vercel.com/yujin-yeohs-projects/stocktracker" target="_blank" rel="noopener noreferrer" className="hover:underline">
-                🔧 Edit Code on Vercel
-              </a>
-            </p>
+            <p className="text-green-400 font-medium">✅ No CORS errors - Using serverless API for Tiingo!</p>
           </div>
         </div>
       );
