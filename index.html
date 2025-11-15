@@ -3,8 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Stock Tracker - Real-time Analysis</title>
-  <meta name="description" content="Real-time stock tracker with technical analysis, RSI indicators, and buy/sell signals">
+  <title>Live Stock Tracker</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -12,37 +11,62 @@
 </head>
 <body class="bg-gray-900">
   <div id="root"></div>
-
   <script type="text/babel">
     const { useState, useEffect } = React;
-
-    const FINNHUB_API_KEY = 'd4c75u9r01qudf6gvp8gd4c75u9r01qudf6gvp90';
+    
+    // API Configuration
+    const FINNHUB_API_KEY = 'd4c75u9r01qudf6gvp8gd4c75u9r01qudf6gvp90'; // Your existing key
+    const TIINGO_API_KEY = 'YOUR_TIINGO_KEY_HERE'; // Get free key at https://www.tiingo.com/account/api/token
+    
     const FINNHUB_BASE_URL = 'https://finnhub.io/api/v1';
-
-    // Watchlist - customize these stocks
+    const TIINGO_BASE_URL = 'https://api.tiingo.com';
+    
     const WATCHLIST = [
       'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX',
       'AMD', 'INTC', 'PYPL', 'SNAP', 'UBER', 'COIN', 'SQ', 'SHOP',
       'ORCL', 'ADBE', 'CRM', 'PLTR'
     ];
 
-    // Alert Settings
-    const ALERT_SETTINGS = {
-      enabled: false, // Set to true to enable notifications
-      webhookUrl: '', // Your webhook URL (we'll set this up)
-      conditions: {
-        strongBuyThreshold: 85, // Notify when tech score >= 85
-        significantDropThreshold: 20, // Notify when drop >= 20%
-        rsiOversold: 25, // Notify when RSI <= 25
-        rsiOverbought: 80 // Notify when RSI >= 80
+    // Market Hours Helper
+    class MarketHours {
+      static isMarketOpen() {
+        const now = new Date();
+        const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const day = et.getDay();
+        const hour = et.getHours();
+        const minute = et.getMinutes();
+        
+        if (day === 0 || day === 6) return false;
+        const isMarketHours = (hour === 9 && minute >= 30) || (hour >= 10 && hour < 16);
+        return isMarketHours;
       }
-    };
+
+      static isWeekend() {
+        const now = new Date();
+        const et = new Date(now.toLocaleString('en-US', { timeZone: 'America/New_York' }));
+        const day = et.getDay();
+        return day === 0 || day === 6;
+      }
+
+      static getRefreshInterval() {
+        if (this.isWeekend()) return 3600000; // 1 hour on weekends
+        if (this.isMarketOpen()) return 120000; // 2 minutes during market hours
+        return 900000; // 15 minutes after hours
+      }
+
+      static getStatusText() {
+        if (this.isWeekend()) return '📅 Weekend - Market Closed';
+        if (this.isMarketOpen()) return '🟢 Market Open';
+        return '🔴 Market Closed';
+      }
+    }
 
     class DataCache {
       constructor(expiryMs = 60000) {
         this.cache = new Map();
         this.expiryMs = expiryMs;
       }
+      
       get(key) {
         const item = this.cache.get(key);
         if (!item) return null;
@@ -51,17 +75,22 @@
         this.cache.delete(key);
         return null;
       }
+      
       set(key, data) {
         this.cache.set(key, { data, timestamp: Date.now() });
       }
     }
 
-    class FinnhubService {
-      constructor(apiKey) {
-        this.apiKey = apiKey;
-        this.quoteCache = new DataCache(30000);
-        this.candleCache = new DataCache(300000);
-        this.profileCache = new DataCache(3600000);
+    // Hybrid API Service - Finnhub for quotes, Tiingo for historical
+    class HybridStockService {
+      constructor(finnhubKey, tiingoKey) {
+        this.finnhubKey = finnhubKey;
+        this.tiingoKey = tiingoKey;
+        
+        // Separate caches for different data types
+        this.quoteCache = new DataCache(30000);        // 30 sec for quotes (frequent updates)
+        this.profileCache = new DataCache(3600000);    // 1 hour for profiles (rarely change)
+        this.historyCache = new DataCache(900000);     // 15 min for historical (don't need constant updates)
       }
 
       async fetchWithRetry(url, retries = 3) {
@@ -81,32 +110,53 @@
         }
       }
 
-      async getQuote(symbol) {
+      // Finnhub: Get real-time quote
+      async getFinnhubQuote(symbol) {
         const cached = this.quoteCache.get(symbol);
         if (cached) return cached;
-        const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${this.apiKey}`;
+        
+        const url = `${FINNHUB_BASE_URL}/quote?symbol=${symbol}&token=${this.finnhubKey}`;
         const data = await this.fetchWithRetry(url);
         this.quoteCache.set(symbol, data);
         return data;
       }
 
-      async getCompanyProfile(symbol) {
+      // Finnhub: Get company profile
+      async getFinnhubProfile(symbol) {
         const cached = this.profileCache.get(symbol);
         if (cached) return cached;
-        const url = `${FINNHUB_BASE_URL}/stock/profile2?symbol=${symbol}&token=${this.apiKey}`;
+        
+        const url = `${FINNHUB_BASE_URL}/stock/profile2?symbol=${symbol}&token=${this.finnhubKey}`;
         const data = await this.fetchWithRetry(url);
         this.profileCache.set(symbol, data);
         return data;
       }
 
-      async getCandles(symbol, from, to) {
-        const cacheKey = `${symbol}-${from}-${to}`;
-        const cached = this.candleCache.get(cacheKey);
+      // Tiingo: Get historical prices (90 days)
+      async getTiingoHistory(symbol, days = 90) {
+        const cacheKey = `${symbol}-hist-${days}`;
+        const cached = this.historyCache.get(cacheKey);
         if (cached) return cached;
-        const url = `${FINNHUB_BASE_URL}/stock/candle?symbol=${symbol}&resolution=D&from=${from}&to=${to}&token=${this.apiKey}`;
+
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+
+        const url = `${TIINGO_BASE_URL}/tiingo/daily/${symbol}/prices?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}&token=${this.tiingoKey}`;
         const data = await this.fetchWithRetry(url);
-        this.candleCache.set(cacheKey, data);
+        this.historyCache.set(cacheKey, data);
         return data;
+      }
+
+      // Combined: Get all stock data
+      async getStockData(symbol) {
+        const [quote, profile, history] = await Promise.all([
+          this.getFinnhubQuote(symbol),
+          this.getFinnhubProfile(symbol),
+          this.getTiingoHistory(symbol, 90)
+        ]);
+
+        return { quote, profile, history };
       }
     }
 
@@ -150,13 +200,16 @@
         let score = 0;
         const { quote, rsi, sma20, sma50, profile } = stockData;
 
+        // RSI Component (30 points)
         if (rsi) {
           if (rsi >= 50 && rsi <= 70) score += 30;
           else if (rsi >= 40 && rsi < 50) score += 25;
           else if (rsi < 40) score += 20;
+          else if (rsi > 70 && rsi <= 75) score += 15;
           else score += 10;
         }
 
+        // Price Momentum (25 points)
         const changePercent = quote.dp || 0;
         if (changePercent > 3) score += 25;
         else if (changePercent > 1) score += 20;
@@ -164,12 +217,25 @@
         else if (changePercent > -2) score += 10;
         else score += 5;
 
+        // Moving Average Trend (20 points)
         if (sma20 && sma50 && quote.c) {
           if (quote.c > sma20 && sma20 > sma50) score += 20;
           else if (quote.c > sma20) score += 15;
+          else if (quote.c > sma50) score += 10;
           else score += 5;
         }
 
+        // Volume Analysis (15 points)
+        if (quote.c && quote.pc) {
+          const priceChange = Math.abs(quote.c - quote.pc);
+          const volatility = (priceChange / quote.pc) * 100;
+          if (volatility > 5) score += 15;
+          else if (volatility > 3) score += 12;
+          else if (volatility > 1) score += 10;
+          else score += 5;
+        }
+
+        // Market Cap Stability (10 points)
         if (profile?.marketCapitalization) {
           const cap = profile.marketCapitalization * 1e6;
           if (cap > 100e9) score += 10;
@@ -190,117 +256,55 @@
       }
     }
 
-    // Notification System
-    class NotificationService {
-      static async sendAlert(message, data) {
-        if (!ALERT_SETTINGS.enabled || !ALERT_SETTINGS.webhookUrl) {
-          console.log('Alert:', message, data);
-          return;
-        }
-
-        try {
-          await fetch(ALERT_SETTINGS.webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              message,
-              data,
-              timestamp: new Date().toISOString()
-            })
-          });
-        } catch (error) {
-          console.error('Failed to send notification:', error);
-        }
-      }
-
-      static checkAlerts(stockInfo) {
-        const alerts = [];
-
-        // Strong Buy Alert
-        if (stockInfo.techScore >= ALERT_SETTINGS.conditions.strongBuyThreshold) {
-          alerts.push({
-            type: 'STRONG_BUY',
-            message: `🚀 STRONG BUY: ${stockInfo.symbol} - Score: ${stockInfo.techScore}`,
-            stock: stockInfo
-          });
-        }
-
-        // Significant Drop Alert
-        if (stockInfo.dropValue >= ALERT_SETTINGS.conditions.significantDropThreshold) {
-          alerts.push({
-            type: 'SIGNIFICANT_DROP',
-            message: `⚠️ BIG DROP: ${stockInfo.symbol} down ${stockInfo.drop} from 3-month high`,
-            stock: stockInfo
-          });
-        }
-
-        // RSI Oversold Alert
-        const rsiValue = parseFloat(stockInfo.rsi);
-        if (!isNaN(rsiValue) && rsiValue <= ALERT_SETTINGS.conditions.rsiOversold) {
-          alerts.push({
-            type: 'RSI_OVERSOLD',
-            message: `💎 OVERSOLD: ${stockInfo.symbol} - RSI: ${stockInfo.rsi} (Potential Buy)`,
-            stock: stockInfo
-          });
-        }
-
-        // RSI Overbought Alert
-        if (!isNaN(rsiValue) && rsiValue >= ALERT_SETTINGS.conditions.rsiOverbought) {
-          alerts.push({
-            type: 'RSI_OVERBOUGHT',
-            message: `🔥 OVERBOUGHT: ${stockInfo.symbol} - RSI: ${stockInfo.rsi} (Consider Selling)`,
-            stock: stockInfo
-          });
-        }
-
-        return alerts;
-      }
-    }
-
     const StockTracker = () => {
       const [activeTab, setActiveTab] = useState('strong-buy');
       const [stockData, setStockData] = useState({
         strongBuys: [],
         significantDrops: [],
+        allStocks: [],
         loading: true,
         error: null
       });
       const [refreshTime, setRefreshTime] = useState(new Date());
       const [isRefreshing, setIsRefreshing] = useState(false);
-      const [notifications, setNotifications] = useState([]);
-      const [showNotifications, setShowNotifications] = useState(false);
+      const [marketStatus, setMarketStatus] = useState(MarketHours.getStatusText());
+      
+      const stockService = new HybridStockService(FINNHUB_API_KEY, TIINGO_API_KEY);
 
-      const finnhub = new FinnhubService(FINNHUB_API_KEY);
-
-      const fetchStockData = async () => {
-        setIsRefreshing(true);
-        setStockData(prev => ({ ...prev, loading: true, error: null }));
-
+      const fetchStockData = async (isInitialLoad = false) => {
+        if (isInitialLoad) {
+          setStockData(prev => ({ ...prev, loading: true }));
+        } else {
+          setIsRefreshing(true);
+        }
+        
         try {
           const strongBuys = [];
           const significantDrops = [];
-          const newNotifications = [];
-          const to = Math.floor(Date.now() / 1000);
-          const from = to - (90 * 24 * 60 * 60);
-
+          const allStocks = [];
+          
+          // Process in batches to respect rate limits
           for (let i = 0; i < WATCHLIST.length; i += 5) {
             const batch = WATCHLIST.slice(i, i + 5);
             
             await Promise.all(batch.map(async (symbol) => {
               try {
-                const [quote, profile, candles] = await Promise.all([
-                  finnhub.getQuote(symbol),
-                  finnhub.getCompanyProfile(symbol),
-                  finnhub.getCandles(symbol, from, to)
-                ]);
+                // Get data from both APIs
+                const { quote, profile, history } = await stockService.getStockData(symbol);
 
-                if (!quote || quote.c === 0 || !profile?.name) return;
+                if (!quote || quote.c === 0 || !profile?.name) {
+                  console.warn(`Skipping ${symbol} - invalid data`);
+                  return;
+                }
 
-                const prices = candles?.c || [];
-                const rsi = prices.length > 14 ? TechnicalAnalysis.calculateRSI(prices) : null;
-                const sma20 = TechnicalAnalysis.calculateSMA(prices, 20);
-                const sma50 = TechnicalAnalysis.calculateSMA(prices, 50);
-                const threeMonthHigh = prices.length > 0 ? Math.max(...prices) : quote.h;
+                // Calculate technical indicators from Tiingo historical data
+                const closePrices = history.map(h => h.close);
+                const rsi = TechnicalAnalysis.calculateRSI(closePrices);
+                const sma20 = TechnicalAnalysis.calculateSMA(closePrices, 20);
+                const sma50 = TechnicalAnalysis.calculateSMA(closePrices, 50);
+                
+                // Calculate 3-month high for drop detection
+                const threeMonthHigh = Math.max(...closePrices);
                 const dropPercentage = ((threeMonthHigh - quote.c) / threeMonthHigh) * 100;
 
                 const stockInfo = {
@@ -308,19 +312,36 @@
                   company: profile.name,
                   price: quote.c,
                   change: `${quote.dp > 0 ? '+' : ''}${quote.dp?.toFixed(2) || '0.00'}%`,
+                  changeValue: quote.dp || 0,
                   marketCap: formatMarketCap(profile.marketCapitalization * 1e6),
                   rsi: rsi ? rsi.toFixed(1) : 'N/A',
                   techScore: 0,
                   prediction: 'Hold',
-                  dropValue: dropPercentage
+                  dropValue: dropPercentage,
+                  high: quote.h,
+                  low: quote.l
                 };
 
-                const techScore = QuantScorer.calculateTechnicalScore({ quote, rsi, sma20, sma50, profile });
+                // Calculate technical score
+                const techScore = QuantScorer.calculateTechnicalScore({
+                  quote,
+                  rsi,
+                  sma20,
+                  sma50,
+                  profile
+                });
+                
                 stockInfo.techScore = techScore;
                 stockInfo.prediction = QuantScorer.getRecommendation(techScore);
 
-                if (techScore >= 75) strongBuys.push(stockInfo);
-                if (dropPercentage >= 15 && prices.length > 0) {
+                allStocks.push(stockInfo);
+                
+                // Categorize stocks
+                if (techScore >= 75) {
+                  strongBuys.push(stockInfo);
+                }
+                
+                if (dropPercentage >= 15 && closePrices.length > 0) {
                   significantDrops.push({
                     ...stockInfo,
                     drop: `-${dropPercentage.toFixed(1)}%`,
@@ -328,41 +349,68 @@
                   });
                 }
 
-                // Check for alerts
-                const alerts = NotificationService.checkAlerts(stockInfo);
-                alerts.forEach(alert => {
-                  newNotifications.push(alert);
-                  NotificationService.sendAlert(alert.message, alert.stock);
-                });
-
               } catch (error) {
-                console.error(`Error: ${symbol}`, error);
+                console.error(`Error processing ${symbol}:`, error);
               }
             }));
 
-            if (i + 5 < WATCHLIST.length) await new Promise(r => setTimeout(r, 1200));
+            // Rate limiting between batches
+            if (i + 5 < WATCHLIST.length) {
+              await new Promise(r => setTimeout(r, 1000));
+            }
           }
 
+          // Sort results
           strongBuys.sort((a, b) => b.techScore - a.techScore);
           significantDrops.sort((a, b) => b.dropValue - a.dropValue);
+          allStocks.sort((a, b) => b.changeValue - a.changeValue);
 
-          setStockData({ strongBuys, significantDrops, loading: false, error: null });
+          setStockData({
+            strongBuys,
+            significantDrops,
+            allStocks,
+            loading: false,
+            error: null
+          });
           setRefreshTime(new Date());
-          
-          if (newNotifications.length > 0) {
-            setNotifications(prev => [...newNotifications, ...prev].slice(0, 20));
-          }
+          setMarketStatus(MarketHours.getStatusText());
+
         } catch (error) {
-          setStockData(prev => ({ ...prev, loading: false, error: 'Failed to fetch data.' }));
+          console.error('Fetch error:', error);
+          setStockData(prev => ({
+            ...prev,
+            loading: false,
+            error: 'Failed to fetch stock data. Please check your API keys.'
+          }));
         } finally {
           setIsRefreshing(false);
         }
       };
 
       useEffect(() => {
-        fetchStockData();
-        const interval = setInterval(fetchStockData, 120000);
-        return () => clearInterval(interval);
+        fetchStockData(true); // Initial load
+
+        // Smart refresh based on market hours
+        const setupRefresh = () => {
+          const interval = MarketHours.getRefreshInterval();
+          return setInterval(() => {
+            fetchStockData(false);
+          }, interval);
+        };
+
+        let refreshInterval = setupRefresh();
+
+        // Adjust refresh interval every 5 minutes based on market status
+        const adjustInterval = setInterval(() => {
+          clearInterval(refreshInterval);
+          refreshInterval = setupRefresh();
+          setMarketStatus(MarketHours.getStatusText());
+        }, 300000); // Check every 5 minutes
+
+        return () => {
+          clearInterval(refreshInterval);
+          clearInterval(adjustInterval);
+        };
       }, []);
 
       const formatMarketCap = (cap) => {
@@ -373,13 +421,15 @@
         return cap.toString();
       };
 
-      if (stockData.loading && stockData.strongBuys.length === 0) {
+      // Only show full loading screen on initial load
+      if (stockData.loading && stockData.allStocks.length === 0) {
         return (
           <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">
             <div className="text-center">
               <div className="text-6xl mb-4 animate-pulse">📊</div>
               <p className="text-xl">Loading live stock data...</p>
               <p className="text-sm text-gray-400 mt-2">Analyzing {WATCHLIST.length} stocks</p>
+              <p className="text-xs text-gray-500 mt-4">Using Finnhub + Tiingo APIs</p>
             </div>
           </div>
         );
@@ -387,27 +437,22 @@
 
       return (
         <div className="min-h-screen bg-gray-900 text-white p-4 md:p-6">
-          <div className="mb-8">
+          {/* Updating Banner */}
+          {isRefreshing && (
+            <div className="fixed top-0 left-0 right-0 bg-blue-600 text-white text-center py-2 z-50 animate-pulse">
+              🔄 Updating stock data...
+            </div>
+          )}
+
+          <div className={`mb-8 ${isRefreshing ? 'mt-12' : ''}`}>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
-              <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-3">
-                📈 Live Stock Tracker
-              </h1>
-              <div className="flex items-center gap-4">
+              <h1 className="text-2xl md:text-3xl font-bold">📈 Live Stock Tracker</h1>
+              <div className="flex items-center gap-4 flex-wrap">
+                <span className="text-sm px-3 py-1 bg-gray-800 rounded-lg">{marketStatus}</span>
                 <button
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  className="relative flex items-center gap-2 bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition-colors"
-                >
-                  🔔 Alerts
-                  {notifications.length > 0 && (
-                    <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                      {notifications.length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  onClick={fetchStockData}
+                  onClick={() => fetchStockData(false)}
                   disabled={isRefreshing}
-                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg disabled:opacity-50 transition-colors"
                 >
                   {isRefreshing ? '🔄' : '↻'} Refresh
                 </button>
@@ -416,20 +461,6 @@
                 </div>
               </div>
             </div>
-
-            {showNotifications && notifications.length > 0 && (
-              <div className="mb-4 bg-gray-800 rounded-lg p-4 max-h-64 overflow-y-auto">
-                <h3 className="font-semibold mb-2">Recent Alerts</h3>
-                {notifications.map((notif, idx) => (
-                  <div key={idx} className="py-2 border-b border-gray-700 last:border-0">
-                    <p className="text-sm">{notif.message}</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      ${notif.stock.price.toFixed(2)} | Score: {notif.stock.techScore}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
 
             {stockData.error && (
               <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-lg mb-4">
@@ -458,64 +489,71 @@
               >
                 📉 Drops &gt;15% ({stockData.significantDrops.length})
               </button>
+              <button
+                onClick={() => setActiveTab('all-stocks')}
+                className={`pb-2 px-3 md:px-4 font-medium whitespace-nowrap transition-colors ${
+                  activeTab === 'all-stocks' 
+                    ? 'text-blue-400 border-b-2 border-blue-400' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                📊 All Stocks ({stockData.allStocks.length})
+              </button>
             </div>
           </div>
 
+          {/* Strong Buy Tab */}
           {activeTab === 'strong-buy' && (
             <div className="bg-gray-800 rounded-lg overflow-hidden">
               <div className="bg-green-600 px-4 md:px-6 py-3">
-                <h2 className="text-lg font-semibold">
-                  🎯 Strong Buy Signals ({stockData.strongBuys.length} stocks)
-                </h2>
+                <h2 className="text-lg font-semibold">🎯 Strong Buy Signals ({stockData.strongBuys.length} stocks)</h2>
               </div>
               
               {stockData.strongBuys.length === 0 ? (
                 <div className="px-6 py-8 text-center text-gray-400">
-                  No strong buy signals detected at this time.
+                  No strong buy signals detected at this time. Market conditions may not be favorable.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm md:text-base">
+                  <table className="w-full text-sm">
                     <thead className="bg-gray-700">
                       <tr>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Symbol</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Company</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Price</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Change</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase hidden md:table-cell">Cap</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">RSI</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Score</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Signal</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Symbol</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Company</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Price</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Change</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase hidden md:table-cell">Market Cap</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">RSI</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Score</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Signal</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-600">
-                      {stockData.strongBuys.map((stock, idx) => (
-                        <tr key={idx} className="hover:bg-gray-700 transition-colors">
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap">
-                            <span className="text-blue-400 font-semibold">{stock.symbol}</span>
+                      {stockData.strongBuys.map((s, i) => (
+                        <tr key={i} className="hover:bg-gray-700 transition-colors">
+                          <td className="px-3 py-4"><span className="text-blue-400 font-semibold">{s.symbol}</span></td>
+                          <td className="px-3 py-4 max-w-[120px] truncate text-xs md:text-sm">{s.company}</td>
+                          <td className="px-3 py-4 font-medium">${s.price.toFixed(2)}</td>
+                          <td className={`px-3 py-4 font-medium ${s.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+                            {s.change}
                           </td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm max-w-[120px] truncate">{stock.company}</td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap font-medium">${stock.price.toFixed(2)}</td>
-                          <td className={`px-3 md:px-6 py-4 whitespace-nowrap font-medium ${stock.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
-                            {stock.change}
-                          </td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm hidden md:table-cell">{stock.marketCap}</td>
-                          <td className={`px-3 md:px-6 py-4 whitespace-nowrap font-medium ${
-                            stock.rsi === 'N/A' ? 'text-gray-400' : 
-                            parseFloat(stock.rsi) >= 70 ? 'text-red-400' :
-                            parseFloat(stock.rsi) <= 30 ? 'text-green-400' : 'text-blue-400'
+                          <td className="px-3 py-4 hidden md:table-cell">{s.marketCap}</td>
+                          <td className={`px-3 py-4 font-medium ${
+                            s.rsi === 'N/A' ? 'text-gray-400' : 
+                            parseFloat(s.rsi) >= 70 ? 'text-red-400' :
+                            parseFloat(s.rsi) <= 30 ? 'text-green-400' : 'text-blue-400'
                           }`}>
-                            {stock.rsi}
+                            {s.rsi}
                           </td>
-                          <td className={`px-3 md:px-6 py-4 whitespace-nowrap font-medium ${
-                            stock.techScore >= 80 ? 'text-green-400' :
-                            stock.techScore >= 60 ? 'text-yellow-400' : 'text-red-400'
+                          <td className={`px-3 py-4 font-bold ${
+                            s.techScore >= 80 ? 'text-green-400' :
+                            s.techScore >= 60 ? 'text-yellow-400' : 'text-gray-400'
                           }`}>
-                            {stock.techScore}
+                            {s.techScore}
                           </td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap">
+                          <td className="px-3 py-4">
                             <span className="bg-green-600 text-green-100 px-2 py-1 rounded text-xs font-medium">
-                              {stock.prediction}
+                              {s.prediction}
                             </span>
                           </td>
                         </tr>
@@ -527,56 +565,53 @@
             </div>
           )}
 
+          {/* Significant Drops Tab */}
           {activeTab === 'significant-drops' && (
             <div className="bg-gray-800 rounded-lg overflow-hidden">
               <div className="bg-red-600 px-4 md:px-6 py-3">
-                <h2 className="text-lg font-semibold">
-                  ⚠️ Significant Drops (&gt;15%)
-                </h2>
+                <h2 className="text-lg font-semibold">⚠️ Significant Drops (&gt;15%)</h2>
               </div>
               
               {stockData.significantDrops.length === 0 ? (
                 <div className="px-6 py-8 text-center text-gray-400">
-                  No significant drops detected.
+                  No significant drops detected. All stocks within 15% of 3-month highs.
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm md:text-base">
+                  <table className="w-full text-sm">
                     <thead className="bg-gray-700">
                       <tr>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Symbol</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Company</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Price</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Drop</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase hidden md:table-cell">3M High</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">RSI</th>
-                        <th className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase">Signal</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Symbol</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Company</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Price</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Drop</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase hidden md:table-cell">3M High</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">RSI</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Signal</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-600">
-                      {stockData.significantDrops.map((stock, idx) => (
-                        <tr key={idx} className="hover:bg-gray-700 transition-colors">
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap">
-                            <span className="text-blue-400 font-semibold">{stock.symbol}</span>
-                          </td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm max-w-[120px] truncate">{stock.company}</td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap font-medium">${stock.price.toFixed(2)}</td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap font-medium text-red-400">{stock.drop}</td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap text-sm hidden md:table-cell">${stock.threeMonthHigh}</td>
-                          <td className={`px-3 md:px-6 py-4 whitespace-nowrap font-medium ${
-                            stock.rsi === 'N/A' ? 'text-gray-400' :
-                            parseFloat(stock.rsi) >= 70 ? 'text-red-400' :
-                            parseFloat(stock.rsi) <= 30 ? 'text-green-400' : 'text-blue-400'
+                      {stockData.significantDrops.map((s, i) => (
+                        <tr key={i} className="hover:bg-gray-700 transition-colors">
+                          <td className="px-3 py-4"><span className="text-blue-400 font-semibold">{s.symbol}</span></td>
+                          <td className="px-3 py-4 max-w-[120px] truncate text-xs md:text-sm">{s.company}</td>
+                          <td className="px-3 py-4 font-medium">${s.price.toFixed(2)}</td>
+                          <td className="px-3 py-4 font-medium text-red-400">{s.drop}</td>
+                          <td className="px-3 py-4 hidden md:table-cell">${s.threeMonthHigh}</td>
+                          <td className={`px-3 py-4 font-medium ${
+                            s.rsi === 'N/A' ? 'text-gray-400' :
+                            parseFloat(s.rsi) >= 70 ? 'text-red-400' :
+                            parseFloat(s.rsi) <= 30 ? 'text-green-400' : 'text-blue-400'
                           }`}>
-                            {stock.rsi}
+                            {s.rsi}
                           </td>
-                          <td className="px-3 md:px-6 py-4 whitespace-nowrap">
+                          <td className="px-3 py-4">
                             <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              stock.prediction.includes('Buy') ? 'bg-green-600 text-green-100' : 
-                              stock.prediction.includes('Sell') ? 'bg-red-600 text-red-100' :
-                              'bg-yellow-600 text-yellow-100'
+                              s.prediction.includes('Buy') ? 'bg-green-600 text-green-100' : 
+                              s.prediction === 'Hold' ? 'bg-yellow-600 text-yellow-100' :
+                              'bg-red-600 text-red-100'
                             }`}>
-                              {stock.prediction}
+                              {s.prediction}
                             </span>
                           </td>
                         </tr>
@@ -588,21 +623,91 @@
             </div>
           )}
 
-          <div className="mt-8 text-center text-gray-400 text-xs md:text-sm space-y-2">
-            <p>💰 Live Finnhub Data • Auto-refresh: 2 min • Tracking {WATCHLIST.length} stocks</p>
+          {/* All Stocks Tab */}
+          {activeTab === 'all-stocks' && (
+            <div className="bg-gray-800 rounded-lg overflow-hidden">
+              <div className="bg-blue-600 px-4 md:px-6 py-3">
+                <h2 className="text-lg font-semibold">📊 All Tracked Stocks</h2>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-700">
+                    <tr>
+                      <th className="px-3 py-3 text-left text-xs uppercase">Symbol</th>
+                      <th className="px-3 py-3 text-left text-xs uppercase">Company</th>
+                      <th className="px-3 py-3 text-left text-xs uppercase">Price</th>
+                      <th className="px-3 py-3 text-left text-xs uppercase">Change</th>
+                      <th className="px-3 py-3 text-left text-xs uppercase hidden md:table-cell">Market Cap</th>
+                      <th className="px-3 py-3 text-left text-xs uppercase">RSI</th>
+                      <th className="px-3 py-3 text-left text-xs uppercase">Score</th>
+                      <th className="px-3 py-3 text-left text-xs uppercase">Signal</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-600">
+                    {stockData.allStocks.map((s, i) => (
+                      <tr key={i} className="hover:bg-gray-700 transition-colors">
+                        <td className="px-3 py-4"><span className="text-blue-400 font-semibold">{s.symbol}</span></td>
+                        <td className="px-3 py-4 max-w-[120px] truncate text-xs md:text-sm">{s.company}</td>
+                        <td className="px-3 py-4 font-medium">${s.price.toFixed(2)}</td>
+                        <td className={`px-3 py-4 font-medium ${s.change.startsWith('+') ? 'text-green-400' : 'text-red-400'}`}>
+                          {s.change}
+                        </td>
+                        <td className="px-3 py-4 hidden md:table-cell">{s.marketCap}</td>
+                        <td className={`px-3 py-4 font-medium ${
+                          s.rsi === 'N/A' ? 'text-gray-400' :
+                          parseFloat(s.rsi) >= 70 ? 'text-red-400' :
+                          parseFloat(s.rsi) <= 30 ? 'text-green-400' : 'text-blue-400'
+                        }`}>
+                          {s.rsi}
+                        </td>
+                        <td className={`px-3 py-4 font-bold ${
+                          s.techScore >= 80 ? 'text-green-400' :
+                          s.techScore >= 60 ? 'text-yellow-400' : 'text-gray-400'
+                        }`}>
+                          {s.techScore}
+                        </td>
+                        <td className="px-3 py-4">
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            s.prediction.includes('Buy') ? 'bg-green-600 text-green-100' :
+                            s.prediction === 'Hold' ? 'bg-yellow-600 text-yellow-100' :
+                            'bg-red-600 text-red-100'
+                          }`}>
+                            {s.prediction}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 text-center text-gray-400 text-xs space-y-2">
+            <p>
+              💰 Live Data: Finnhub (quotes) + Tiingo (historical) • Auto-refresh: {
+                MarketHours.isWeekend() ? '1 hour (weekend)' : 
+                MarketHours.isMarketOpen() ? '2 min (market open)' : 
+                '15 min (after hours)'
+              }
+            </p>
             <p>
               <span className="text-green-400">RSI &lt;30</span> = Oversold | 
               <span className="text-blue-400"> 30-70</span> = Neutral | 
               <span className="text-red-400"> &gt;70</span> = Overbought
             </p>
-            {ALERT_SETTINGS.enabled && (
-              <p className="text-green-400">🔔 Notifications: Enabled</p>
-            )}
+            <p>Tech Score: RSI + Momentum + Moving Averages + Volatility + Market Cap</p>
+            <p className="text-blue-400">
+              <a href="https://vercel.com/yujin-yeohs-projects/stocktracker" target="_blank" rel="noopener noreferrer" className="hover:underline">
+                🔧 Edit Code on Vercel
+              </a>
+            </p>
           </div>
         </div>
       );
     };
-
+    
     ReactDOM.render(<StockTracker />, document.getElementById('root'));
   </script>
 </body>
