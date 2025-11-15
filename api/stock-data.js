@@ -1,5 +1,5 @@
-// Vercel Serverless Function for Tiingo Historical Data
-// Finnhub works directly from browser, this handles Tiingo to avoid CORS
+// Vercel Serverless Function for Stock Data
+// Handles both Finnhub (quotes/profile) and Tiingo (historical) to keep API keys secure
 
 export default async function handler(req, res) {
   // Enable CORS for your frontend
@@ -18,31 +18,55 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { symbol, startDate, endDate } = req.query;
+    const { symbol, type, startDate, endDate } = req.query;
 
     if (!symbol) {
       return res.status(400).json({ error: 'Symbol is required' });
     }
 
-    // Get Tiingo API key from environment variable
+    // Get API keys from environment variables (secure!)
+    const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
     const TIINGO_API_KEY = process.env.TIINGO_API_KEY;
 
-    if (!TIINGO_API_KEY) {
-      return res.status(500).json({ error: 'Tiingo API key not configured' });
+    // Route to appropriate API based on 'type' parameter
+    let apiUrl;
+
+    switch (type) {
+      case 'quote':
+        // Finnhub: Real-time quote
+        if (!FINNHUB_API_KEY) {
+          return res.status(500).json({ error: 'Finnhub API key not configured' });
+        }
+        apiUrl = `https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+        break;
+
+      case 'profile':
+        // Finnhub: Company profile
+        if (!FINNHUB_API_KEY) {
+          return res.status(500).json({ error: 'Finnhub API key not configured' });
+        }
+        apiUrl = `https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${FINNHUB_API_KEY}`;
+        break;
+
+      case 'history':
+        // Tiingo: Historical data
+        if (!TIINGO_API_KEY) {
+          return res.status(500).json({ error: 'Tiingo API key not configured' });
+        }
+        const end = endDate || new Date().toISOString().split('T')[0];
+        const start = startDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        apiUrl = `https://api.tiingo.com/tiingo/daily/${symbol}/prices?startDate=${start}&endDate=${end}&token=${TIINGO_API_KEY}`;
+        break;
+
+      default:
+        return res.status(400).json({ error: 'Invalid type. Use: quote, profile, or history' });
     }
 
-    // Default to last 3 months if dates not provided
-    const end = endDate || new Date().toISOString().split('T')[0];
-    const start = startDate || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-
-    // Build Tiingo API URL
-    const apiUrl = `https://api.tiingo.com/tiingo/daily/${symbol}/prices?startDate=${start}&endDate=${end}&token=${TIINGO_API_KEY}`;
-
-    // Fetch historical data from Tiingo
+    // Fetch data from the appropriate API
     const response = await fetch(apiUrl);
 
     if (!response.ok) {
-      throw new Error(`Tiingo API responded with status: ${response.status}`);
+      throw new Error(`API responded with status: ${response.status}`);
     }
 
     const data = await response.json();
@@ -51,9 +75,9 @@ export default async function handler(req, res) {
     return res.status(200).json(data);
 
   } catch (error) {
-    console.error('Error fetching Tiingo historical data:', error);
+    console.error('Error fetching stock data:', error);
     return res.status(500).json({ 
-      error: 'Failed to fetch historical data',
+      error: 'Failed to fetch stock data',
       message: error.message 
     });
   }
