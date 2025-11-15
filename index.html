@@ -17,13 +17,12 @@
     // API Configuration - ALL keys now securely stored in Vercel environment variables!
     // No API keys exposed in frontend code = secure! 🔒
     
-    // ⚠️ REDUCED STOCK COUNT to avoid rate limiting
-    // Start with fewer stocks - users can add more manually
+    // 📊 Full stock watchlist - optimized batching prevents rate limiting
     const WATCHLIST = [
-      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 
-      'META', 'NVDA', 'NFLX', 'AMD', 'INTC'
-      // Reduced from 20 to 10 stocks to stay under rate limits
-      // Can be increased with caching improvements
+      'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'META', 'NVDA', 'NFLX',
+      'AMD', 'INTC', 'PYPL', 'SNAP', 'UBER', 'COIN', 'SQ', 'SHOP',
+      'ORCL', 'ADBE', 'CRM', 'PLTR'
+      // 20 stocks total - batched loading keeps us under rate limits
     ];
 
     // Market Hours Helper
@@ -299,10 +298,10 @@
           const significantDrops = [];
           const allStocks = [];
           
-          // 🔧 IMPROVED BATCHING CONFIGURATION
-          const BATCH_SIZE = 3;  // Reduced from 5 to 3 stocks per batch
-          const DELAY_BETWEEN_BATCHES = 2500;  // Increased to 2.5 seconds between batches
-          const DELAY_BETWEEN_STOCKS = 600;  // 600ms delay between individual stocks
+          // 🔧 OPTIMIZED BATCHING CONFIGURATION (20 stocks)
+          const BATCH_SIZE = 4;  // 4 stocks per batch = 5 batches total
+          const DELAY_BETWEEN_BATCHES = 2000;  // 2 seconds between batches
+          const DELAY_BETWEEN_STOCKS = 500;  // 500ms delay between individual stocks
           
           console.log(`🔄 Loading ${WATCHLIST.length} stocks in batches of ${BATCH_SIZE}...`);
           
@@ -772,7 +771,7 @@
             </p>
             <p>Tech Score: RSI + Momentum + Moving Averages + Volatility + Market Cap</p>
             <p className="text-green-400 font-medium">🔒 Fully Secure - All API keys protected via serverless!</p>
-            <p className="text-yellow-400 font-medium">⚡ Batched Loading - Respects API rate limits (3 stocks/batch, 2.5s delay)</p>
+            <p className="text-yellow-400 font-medium">⚡ Batched Loading - Respects API rate limits (4 stocks/batch, 2s delay)</p>
           </div>
         </div>
       );
