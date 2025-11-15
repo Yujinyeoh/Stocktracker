@@ -89,94 +89,121 @@
       </div>
     );
 
-    // Tech Score Info Content
+    // Quant Score Info Content
     const TechScoreInfoContent = () => (
       <div className="space-y-4">
         <div>
-          <h4 className="font-bold text-lg mb-2">What is the Tech Score?</h4>
+          <h4 className="font-bold text-lg mb-2">What is the Quant Score?</h4>
           <p className="text-gray-300">
-            Our Technical Score (0-100) combines 5 key indicators to give you a quick assessment of a stock's technical strength. Higher scores indicate more bullish signals.
+            Our Quantitative Score (0-100) uses a sophisticated multi-factor model that combines statistical analysis, risk metrics, and quantitative indicators. This goes beyond simple technical analysis to provide a data-driven assessment of each stock's potential.
           </p>
         </div>
 
         <div className="bg-gray-700 p-4 rounded-lg">
-          <h4 className="font-bold mb-3">Score Breakdown (Total: 100 points):</h4>
+          <h4 className="font-bold mb-3">Multi-Factor Model Breakdown:</h4>
           
           <div className="space-y-3">
             <div>
-              <p className="font-semibold text-blue-400">1️⃣ RSI Score (0-30 points)</p>
+              <p className="font-semibold text-blue-400">1️⃣ Momentum Factor (25%)</p>
               <p className="text-gray-300 text-xs mt-1">
-                Best: 50-70 range = 30pts | Oversold/Overbought = 10-20pts | Extreme zones = 0-10pts
+                Analyzes price momentum over 5, 10, and 20-day periods with weighted averages. Recent momentum weighted more heavily than older data.
               </p>
             </div>
 
             <div>
-              <p className="font-semibold text-blue-400">2️⃣ Price Momentum (0-25 points)</p>
+              <p className="font-semibold text-blue-400">2️⃣ Mean Reversion Factor (20%)</p>
               <p className="text-gray-300 text-xs mt-1">
-                Based on today's price change: +3% or more = 25pts | +1% to +3% = 20pts | Negative = 5-10pts
+                Uses Bollinger Bands and moving average distances to identify oversold/overbought conditions. Stocks near lower bands score higher (potential bounce).
               </p>
             </div>
 
             <div>
-              <p className="font-semibold text-blue-400">3️⃣ Moving Average Trend (0-20 points)</p>
+              <p className="font-semibold text-blue-400">3️⃣ Trend Strength Factor (25%)</p>
               <p className="text-gray-300 text-xs mt-1">
-                "Golden Cross" (Price &gt; 20-day avg &gt; 50-day avg) = 20pts | Price above both = 15pts
+                Evaluates trend alignment (Golden Cross patterns), trend consistency, and moving average slopes to measure trend quality and sustainability.
               </p>
             </div>
 
             <div>
-              <p className="font-semibold text-blue-400">4️⃣ Volatility (0-15 points)</p>
+              <p className="font-semibold text-blue-400">4️⃣ Risk-Adjusted Returns (15%)</p>
               <p className="text-gray-300 text-xs mt-1">
-                High volatility (3-8%) = 15pts | Moderate (1-3%) = 10pts | Shows trading activity and opportunities
+                Calculates Sharpe and Sortino-like ratios to measure returns relative to volatility and downside risk. Rewards consistent gains with low risk.
               </p>
             </div>
 
             <div>
-              <p className="font-semibold text-blue-400">5️⃣ Market Cap Stability (0-10 points)</p>
+              <p className="font-semibold text-blue-400">5️⃣ Value Factor (15%)</p>
               <p className="text-gray-300 text-xs mt-1">
-                Large cap (&gt;$200B) = 10pts | Mid cap (&gt;$10B) = 8pts | Rewards stability
+                Analyzes distance from 3M/6M highs and support levels to identify value opportunities. Stocks at significant discounts score higher.
               </p>
             </div>
           </div>
         </div>
 
         <div className="bg-gray-700 p-4 rounded-lg">
-          <h4 className="font-bold mb-3">What the Scores Mean:</h4>
+          <h4 className="font-bold mb-3">Signal Classifications:</h4>
           <div className="space-y-2 text-xs">
-            <p><span className="bg-green-600 px-2 py-1 rounded font-semibold">85-100</span> <span className="text-green-400">Strong Buy</span> - Almost all signals are positive</p>
-            <p><span className="bg-green-700 px-2 py-1 rounded font-semibold">75-84</span> <span className="text-green-400">Buy (4)</span> - Most signals look good</p>
-            <p><span className="bg-green-800 px-2 py-1 rounded font-semibold">65-74</span> <span className="text-green-300">Buy (3)</span> - Some positive signals</p>
-            <p><span className="bg-yellow-700 px-2 py-1 rounded font-semibold">55-64</span> <span className="text-yellow-400">Buy (2)</span> - Cautiously optimistic</p>
-            <p><span className="bg-yellow-600 px-2 py-1 rounded font-semibold">45-54</span> <span className="text-yellow-300">Hold</span> - Neutral, wait and see</p>
-            <p><span className="bg-red-600 px-2 py-1 rounded font-semibold">0-44</span> <span className="text-red-400">Sell</span> - Bearish signals</p>
+            <p><span className="bg-green-600 px-2 py-1 rounded font-semibold">80-100</span> <span className="text-green-400">Strong Buy (High Confidence)</span> - Multiple factors strongly aligned</p>
+            <p><span className="bg-green-700 px-2 py-1 rounded font-semibold">70-79</span> <span className="text-green-400">Buy (High Confidence)</span> - Most factors positive</p>
+            <p><span className="bg-green-800 px-2 py-1 rounded font-semibold">60-69</span> <span className="text-green-300">Buy (Medium Confidence)</span> - Favorable conditions</p>
+            <p><span className="bg-yellow-600 px-2 py-1 rounded font-semibold">55-59</span> <span className="text-yellow-400">Weak Buy (Low Confidence)</span> - Slightly positive signals</p>
+            <p><span className="bg-yellow-700 px-2 py-1 rounded font-semibold">45-54</span> <span className="text-yellow-300">Hold (Neutral)</span> - Mixed signals, wait for clarity</p>
+            <p><span className="bg-orange-600 px-2 py-1 rounded font-semibold">35-44</span> <span className="text-orange-400">Weak Sell (Low Confidence)</span> - Slightly negative signals</p>
+            <p><span className="bg-red-600 px-2 py-1 rounded font-semibold">0-34</span> <span className="text-red-400">Sell (High Confidence)</span> - Multiple negative factors</p>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="font-bold mb-2">Advanced Features:</h4>
+          <div className="bg-gray-900 p-3 rounded text-xs space-y-2">
+            <p><strong>Bollinger Bands:</strong> Statistical bands that identify when prices are stretched relative to their moving average.</p>
+            <p><strong>Sharpe Ratio:</strong> Measures return per unit of total risk (volatility).</p>
+            <p><strong>Sortino Ratio:</strong> Similar to Sharpe but only considers downside volatility (more relevant for investors).</p>
+            <p><strong>Support Levels:</strong> Historical price floors where buying pressure typically emerges.</p>
+            <p><strong>Golden Cross:</strong> Bullish pattern when price > 20-day MA > 50-day MA.</p>
           </div>
         </div>
 
         <div>
           <h4 className="font-bold mb-2">Example Calculation:</h4>
           <div className="bg-gray-900 p-3 rounded text-xs space-y-1">
-            <p className="text-yellow-400 font-semibold">AAPL with 90/100 Score:</p>
-            <p>• RSI = 65 (sweet spot) → 30 pts ✅</p>
-            <p>• Daily change = +1.5% → 20 pts ✅</p>
-            <p>• Golden Cross pattern → 20 pts ✅</p>
-            <p>• Volatility = 1.7% → 10 pts ✅</p>
-            <p>• $2.8T market cap → 10 pts ✅</p>
-            <p className="text-green-400 font-semibold mt-2">Total: 90 = STRONG BUY 🚀</p>
+            <p className="text-yellow-400 font-semibold">NVDA with 85/100 Score:</p>
+            <p>• Momentum: 82/100 (25% weight) → 20.5 pts 🟢</p>
+            <p>• Mean Reversion: 55/100 (20% weight) → 11.0 pts 🟡</p>
+            <p>• Trend Strength: 90/100 (25% weight) → 22.5 pts 🟢</p>
+            <p>• Risk-Adjusted: 75/100 (15% weight) → 11.3 pts 🟢</p>
+            <p>• Value: 70/100 (15% weight) → 10.5 pts 🟢</p>
+            <p>• Market Cap Bonus: +5 pts (large cap) ✅</p>
+            <p className="text-green-400 font-semibold mt-2">Total: 85/100 = STRONG BUY (High Confidence) 🚀</p>
           </div>
+        </div>
+
+        <div className="bg-blue-900 bg-opacity-30 border border-blue-700 p-3 rounded">
+          <p className="text-blue-200 text-xs font-semibold mb-2">
+            💡 Why This Is Better Than Simple Technical Analysis:
+          </p>
+          <ul className="text-blue-200 text-xs space-y-1 ml-4 list-disc">
+            <li>Multi-factor approach reduces single-indicator bias</li>
+            <li>Risk-adjusted metrics account for volatility</li>
+            <li>Statistical models (Bollinger Bands) provide objective thresholds</li>
+            <li>Weighted factors emphasize what matters most</li>
+            <li>Confidence levels show conviction strength</li>
+          </ul>
         </div>
 
         <div className="bg-red-900 bg-opacity-30 border border-red-700 p-3 rounded">
           <p className="text-red-200 text-xs">
-            <strong>⚠️ Important Limitations:</strong> This system ONLY looks at price patterns and technical indicators. It does NOT consider:
+            <strong>⚠️ Important Limitations:</strong> This is a quantitative model based on PRICE DATA ONLY. It does NOT consider:
           </p>
           <ul className="text-red-200 text-xs mt-2 space-y-1 ml-4 list-disc">
-            <li>Company earnings, revenue, or profitability</li>
-            <li>News events, product launches, or scandals</li>
-            <li>Economic factors (interest rates, recession risks)</li>
-            <li>Industry trends or competitive threats</li>
+            <li>Company fundamentals (earnings, revenue, debt)</li>
+            <li>News events, product launches, or management changes</li>
+            <li>Macroeconomic conditions or sector rotation</li>
+            <li>Competitive landscape or market disruption</li>
+            <li>Regulatory changes or geopolitical risks</li>
           </ul>
           <p className="text-red-200 text-xs mt-2 font-semibold">
-            Always do your own research! Use this as a starting point, not your only decision tool.
+            Quantitative models are powerful tools but should be combined with fundamental analysis and your own research!
           </p>
         </div>
       </div>
@@ -399,66 +426,304 @@
       }
     };
 
-    class QuantScorer {
-      static calculateTechnicalScore(stockData) {
+    // Advanced Quantitative Models
+    const QuantModels = {
+      // Calculate Bollinger Bands
+      calculateBollingerBands(prices, period = 20, stdDev = 2) {
+        const sma = TechnicalAnalysis.calculateSMA(prices, period);
+        if (!sma) return null;
+        
+        const recentPrices = prices.slice(-period);
+        const squaredDiffs = recentPrices.map(p => Math.pow(p - sma, 2));
+        const variance = squaredDiffs.reduce((a, b) => a + b, 0) / period;
+        const std = Math.sqrt(variance);
+        
+        return {
+          middle: sma,
+          upper: sma + (stdDev * std),
+          lower: sma - (stdDev * std),
+          bandwidth: (4 * std) / sma
+        };
+      },
+
+      // Calculate Price Momentum Score (0-100)
+      calculateMomentumScore(prices) {
+        if (prices.length < 20) return 50;
+        
+        const current = prices[prices.length - 1];
+        const price5d = prices[prices.length - 6];
+        const price10d = prices[prices.length - 11];
+        const price20d = prices[prices.length - 21];
+        
+        const momentum5d = ((current - price5d) / price5d) * 100;
+        const momentum10d = ((current - price10d) / price10d) * 100;
+        const momentum20d = ((current - price20d) / price20d) * 100;
+        
+        // Weighted momentum: recent prices matter more
+        const weightedMomentum = (momentum5d * 0.5) + (momentum10d * 0.3) + (momentum20d * 0.2);
+        
+        // Normalize to 0-100 scale (assuming ±20% is extreme)
+        return Math.max(0, Math.min(100, 50 + (weightedMomentum * 2.5)));
+      },
+
+      // Calculate Mean Reversion Score (0-100)
+      calculateMeanReversionScore(currentPrice, bb, sma20, sma50) {
+        if (!bb || !sma20 || !sma50) return 50;
+        
         let score = 0;
-        const { quote, rsi, sma20, sma50, profile } = stockData;
+        
+        // Bollinger Band position (50 points max)
+        // Price near lower band = high score (oversold/good buy)
+        // Price near upper band = low score (overbought)
+        const bbPosition = (currentPrice - bb.lower) / (bb.upper - bb.lower);
+        const bbScore = (1 - bbPosition) * 50; // Invert: lower = better
+        score += bbScore;
+        
+        // Moving average distance (50 points max)
+        // Price below MAs = potential reversion up = high score
+        const distanceFromSMA20 = ((currentPrice - sma20) / sma20) * 100;
+        const distanceFromSMA50 = ((currentPrice - sma50) / sma50) * 100;
+        
+        // If price is below MAs, it might revert up (good for buying)
+        const maScore = distanceFromSMA20 < 0 ? 
+          Math.min(50, Math.abs(distanceFromSMA20) * 5) : 
+          Math.max(0, 50 - (distanceFromSMA20 * 5));
+        score += maScore * 0.5;
+        
+        return Math.max(0, Math.min(100, score));
+      },
 
-        // RSI Component (30 points)
-        if (rsi) {
-          if (rsi >= 50 && rsi <= 70) score += 30;
-          else if (rsi >= 40 && rsi < 50) score += 25;
-          else if (rsi < 40) score += 20;
-          else if (rsi > 70 && rsi <= 75) score += 15;
-          else score += 10;
+      // Calculate Trend Strength (0-100)
+      calculateTrendStrength(prices, sma20, sma50) {
+        if (!sma20 || !sma50 || prices.length < 50) return 50;
+        
+        let score = 0;
+        const current = prices[prices.length - 1];
+        
+        // Check trend alignment (40 points)
+        if (current > sma20 && sma20 > sma50) {
+          score += 40; // Strong uptrend
+        } else if (current > sma20 && sma20 < sma50) {
+          score += 25; // Weak uptrend
+        } else if (current < sma20 && sma20 > sma50) {
+          score += 15; // Mixed signals
+        } else {
+          score += 5; // Downtrend
         }
-
-        // Price Momentum (25 points)
-        const changePercent = quote.dp || 0;
-        if (changePercent > 3) score += 25;
-        else if (changePercent > 1) score += 20;
-        else if (changePercent > 0) score += 15;
-        else if (changePercent > -2) score += 10;
-        else score += 5;
-
-        // Moving Average Trend (20 points)
-        if (sma20 && sma50 && quote.c) {
-          if (quote.c > sma20 && sma20 > sma50) score += 20;
-          else if (quote.c > sma20) score += 15;
-          else if (quote.c > sma50) score += 10;
-          else score += 5;
+        
+        // Trend consistency over last 20 days (30 points)
+        const recentPrices = prices.slice(-20);
+        let upDays = 0;
+        for (let i = 1; i < recentPrices.length; i++) {
+          if (recentPrices[i] > recentPrices[i-1]) upDays++;
         }
+        const consistency = (upDays / 19) * 30;
+        score += consistency;
+        
+        // Slope of moving averages (30 points)
+        const sma20_5ago = TechnicalAnalysis.calculateSMA(prices.slice(0, -5), 20);
+        const sma20Slope = sma20_5ago ? ((sma20 - sma20_5ago) / sma20_5ago) * 100 : 0;
+        const slopeScore = Math.max(0, Math.min(30, (sma20Slope + 5) * 3));
+        score += slopeScore;
+        
+        return Math.max(0, Math.min(100, score));
+      },
 
-        // Volume Analysis (15 points)
-        if (quote.c && quote.pc) {
-          const priceChange = Math.abs(quote.c - quote.pc);
-          const volatility = (priceChange / quote.pc) * 100;
-          if (volatility > 5) score += 15;
-          else if (volatility > 3) score += 12;
-          else if (volatility > 1) score += 10;
-          else score += 5;
+      // Calculate Risk-Adjusted Score (0-100)
+      calculateRiskAdjustedScore(prices, currentReturn) {
+        if (prices.length < 30) return 50;
+        
+        // Calculate daily returns
+        const returns = [];
+        for (let i = 1; i < prices.length; i++) {
+          returns.push((prices[i] - prices[i-1]) / prices[i-1]);
         }
+        
+        // Calculate volatility (standard deviation of returns)
+        const avgReturn = returns.reduce((a, b) => a + b, 0) / returns.length;
+        const squaredDiffs = returns.map(r => Math.pow(r - avgReturn, 2));
+        const variance = squaredDiffs.reduce((a, b) => a + b, 0) / returns.length;
+        const volatility = Math.sqrt(variance);
+        
+        // Calculate downside deviation (only negative returns)
+        const negativeReturns = returns.filter(r => r < 0);
+        const downsideVariance = negativeReturns.length > 0 ?
+          negativeReturns.map(r => r * r).reduce((a, b) => a + b, 0) / negativeReturns.length : 0;
+        const downsideDeviation = Math.sqrt(downsideVariance);
+        
+        // Sharpe-like ratio (assuming 0% risk-free rate for simplicity)
+        const sharpeRatio = volatility > 0 ? avgReturn / volatility : 0;
+        
+        // Sortino-like ratio (uses downside deviation)
+        const sortinoRatio = downsideDeviation > 0 ? avgReturn / downsideDeviation : 0;
+        
+        // Score based on risk-adjusted metrics
+        let score = 50;
+        
+        // Reward positive Sharpe ratio (25 points)
+        score += Math.max(-25, Math.min(25, sharpeRatio * 500));
+        
+        // Reward positive Sortino ratio (25 points)
+        score += Math.max(-25, Math.min(25, sortinoRatio * 500));
+        
+        return Math.max(0, Math.min(100, score));
+      },
 
-        // Market Cap Stability (10 points)
+      // Calculate Value Score based on historical highs (0-100)
+      calculateValueScore(currentPrice, threeMonthHigh, sixMonthHigh, prices) {
+        let score = 0;
+        
+        // Distance from 3-month high (40 points)
+        const distanceFrom3M = ((threeMonthHigh - currentPrice) / threeMonthHigh) * 100;
+        if (distanceFrom3M > 20) score += 40; // Deep discount
+        else if (distanceFrom3M > 10) score += 30; // Moderate discount
+        else if (distanceFrom3M > 5) score += 20; // Small discount
+        else if (distanceFrom3M > 0) score += 10; // Near high
+        else score += 5; // At new high
+        
+        // Distance from 6-month high (30 points)
+        const distanceFrom6M = ((sixMonthHigh - currentPrice) / sixMonthHigh) * 100;
+        if (distanceFrom6M > 30) score += 30; // Very deep discount
+        else if (distanceFrom6M > 15) score += 20; // Significant discount
+        else if (distanceFrom6M > 5) score += 10; // Moderate discount
+        else score += 5; // Near high
+        
+        // Support level strength (30 points)
+        // Check if current price is near historical support
+        const recentLows = [];
+        for (let i = Math.max(0, prices.length - 60); i < prices.length - 5; i++) {
+          if (prices[i] <= prices[i-1] && prices[i] <= prices[i+1]) {
+            recentLows.push(prices[i]);
+          }
+        }
+        
+        if (recentLows.length > 0) {
+          const nearSupport = recentLows.some(low => 
+            Math.abs((currentPrice - low) / low) < 0.02 // Within 2% of support
+          );
+          if (nearSupport) score += 30;
+          else score += 15;
+        } else {
+          score += 10;
+        }
+        
+        return Math.max(0, Math.min(100, score));
+      }
+    };
+
+    // Multi-Factor Quantitative Scorer
+    class QuantScorer {
+      static calculateQuantScore(stockData) {
+        const { quote, rsi, sma20, sma50, profile, prices, threeMonthHigh, sixMonthHigh } = stockData;
+        
+        if (!prices || prices.length < 50) {
+          console.warn('Insufficient data for quant analysis');
+          return this.fallbackScore(stockData);
+        }
+        
+        const currentPrice = quote.c;
+        const bb = QuantModels.calculateBollingerBands(prices);
+        
+        // Calculate all factor scores
+        const factors = {
+          momentum: QuantModels.calculateMomentumScore(prices),
+          meanReversion: QuantModels.calculateMeanReversionScore(currentPrice, bb, sma20, sma50),
+          trendStrength: QuantModels.calculateTrendStrength(prices, sma20, sma50),
+          riskAdjusted: QuantModels.calculateRiskAdjustedScore(prices, quote.dp),
+          value: QuantModels.calculateValueScore(currentPrice, threeMonthHigh, sixMonthHigh, prices)
+        };
+        
+        // Factor weights (must sum to 1.0)
+        const weights = {
+          momentum: 0.25,      // 25% - Recent price trends
+          meanReversion: 0.20, // 20% - Oversold/overbought conditions
+          trendStrength: 0.25, // 25% - Overall trend quality
+          riskAdjusted: 0.15,  // 15% - Risk-adjusted returns
+          value: 0.15          // 15% - Value/discount opportunities
+        };
+        
+        // Calculate weighted composite score
+        let compositeScore = 0;
+        for (const [factor, score] of Object.entries(factors)) {
+          compositeScore += score * weights[factor];
+        }
+        
+        // Add market cap quality adjustment (±5 points)
         if (profile?.marketCapitalization) {
           const cap = profile.marketCapitalization * 1e6;
-          if (cap > 100e9) score += 10;
-          else if (cap > 10e9) score += 8;
-          else score += 6;
+          if (cap > 200e9) compositeScore += 5; // Large cap bonus
+          else if (cap > 50e9) compositeScore += 3; // Mid-large cap
+          else if (cap < 2e9) compositeScore -= 3; // Small cap penalty (higher risk)
         }
-
-        return Math.min(Math.round(score), 100);
+        
+        const finalScore = Math.max(0, Math.min(100, Math.round(compositeScore)));
+        
+        // Store factor breakdown for transparency
+        return {
+          score: finalScore,
+          factors,
+          weights,
+          bollingerBands: bb
+        };
       }
 
-      static getRecommendation(score) {
-        if (score >= 85) return 'Strong Buy';
-        if (score >= 75) return 'Buy (4)';
-        if (score >= 65) return 'Buy (3)';
-        if (score >= 55) return 'Buy (2)';
-        if (score >= 45) return 'Hold';
-        return 'Sell';
+      static fallbackScore(stockData) {
+        // Simple fallback if insufficient data
+        const { quote, rsi, profile } = stockData;
+        let score = 50;
+        
+        if (rsi && rsi >= 30 && rsi <= 70) score += 20;
+        if (quote.dp > 0) score += 15;
+        if (profile?.marketCapitalization > 50) score += 15;
+        
+        return {
+          score: Math.min(100, score),
+          factors: { fallback: true },
+          weights: {},
+          bollingerBands: null
+        };
       }
-    }
+
+      static getRecommendation(quantResult) {
+        const score = quantResult.score;
+        
+        // More nuanced recommendations based on quant score
+        if (score >= 80) return { signal: 'Strong Buy', confidence: 'High', color: 'green-600' };
+        if (score >= 70) return { signal: 'Buy', confidence: 'High', color: 'green-700' };
+        if (score >= 60) return { signal: 'Buy', confidence: 'Medium', color: 'green-800' };
+        if (score >= 55) return { signal: 'Weak Buy', confidence: 'Low', color: 'yellow-600' };
+        if (score >= 45) return { signal: 'Hold', confidence: 'Neutral', color: 'yellow-700' };
+        if (score >= 35) return { signal: 'Weak Sell', confidence: 'Low', color: 'orange-600' };
+        return { signal: 'Sell', confidence: 'High', color: 'red-600' };
+      }
+
+      static getFactorAnalysis(quantResult) {
+        if (!quantResult.factors || quantResult.factors.fallback) {
+          return 'Insufficient historical data for detailed factor analysis';
+        }
+        
+        const { factors, weights } = quantResult;
+        const analysis = [];
+        
+        // Analyze each factor
+        for (const [name, score] of Object.entries(factors)) {
+          const weight = weights[name];
+          const contribution = (score * weight).toFixed(1);
+          
+          let rating = '';
+          if (score >= 75) rating = '🟢 Strong';
+          else if (score >= 60) rating = '🟡 Good';
+          else if (score >= 45) rating = '⚪ Neutral';
+          else if (score >= 30) rating = '🟠 Weak';
+          else rating = '🔴 Poor';
+          
+          const formattedName = name.charAt(0).toUpperCase() + name.slice(1).replace(/([A-Z])/g, ' $1');
+          analysis.push(`${formattedName}: ${score.toFixed(0)}/100 ${rating} (${contribution} pts)`);
+        }
+        
+        return analysis.join('\n');
+      }
+    };
 
     const StockTracker = () => {
       const [activeTab, setActiveTab] = useState('strong-buy');
@@ -536,6 +801,20 @@
                 const sixMonthHigh = Math.max(...sixMonthPrices);
                 const dropPercentage = ((threeMonthHigh - quote.c) / threeMonthHigh) * 100;
 
+                // Calculate quantitative score using multi-factor model
+                const quantResult = QuantScorer.calculateQuantScore({
+                  quote,
+                  rsi,
+                  sma20,
+                  sma50,
+                  profile,
+                  prices: closePrices,
+                  threeMonthHigh,
+                  sixMonthHigh
+                });
+                
+                const recommendation = QuantScorer.getRecommendation(quantResult);
+
                 const stockInfo = {
                   symbol,
                   exchange,
@@ -545,8 +824,11 @@
                   changeValue: quote.dp || 0,
                   marketCap: formatMarketCap(profile.marketCapitalization * 1e6),
                   rsi: rsi ? rsi.toFixed(1) : 'N/A',
-                  techScore: 0,
-                  prediction: 'Hold',
+                  quantScore: quantResult.score,
+                  quantFactors: quantResult.factors,
+                  prediction: recommendation.signal,
+                  confidence: recommendation.confidence,
+                  signalColor: recommendation.color,
                   dropValue: dropPercentage,
                   high: quote.h,
                   low: quote.l,
@@ -554,22 +836,10 @@
                   sixMonthHigh: sixMonthHigh
                 };
 
-                // Calculate technical score
-                const techScore = QuantScorer.calculateTechnicalScore({
-                  quote,
-                  rsi,
-                  sma20,
-                  sma50,
-                  profile
-                });
-                
-                stockInfo.techScore = techScore;
-                stockInfo.prediction = QuantScorer.getRecommendation(techScore);
-
                 allStocks.push(stockInfo);
                 
-                // Categorize stocks
-                if (techScore >= 75) {
+                // Categorize stocks based on quant score
+                if (quantResult.score >= 70) {
                   strongBuys.push(stockInfo);
                 }
                 
@@ -612,7 +882,7 @@
           }
 
           // Sort results
-          strongBuys.sort((a, b) => b.techScore - a.techScore);
+          strongBuys.sort((a, b) => b.quantScore - a.quantScore);
           significantDrops.sort((a, b) => b.dropValue - a.dropValue);
           allStocks.sort((a, b) => b.changeValue - a.changeValue);
 
@@ -714,7 +984,7 @@
             <RSIInfoContent />
           </InfoModal>
 
-          <InfoModal isOpen={showScoreInfo} onClose={() => setShowScoreInfo(false)} title="🎯 Understanding Tech Score">
+          <InfoModal isOpen={showScoreInfo} onClose={() => setShowScoreInfo(false)} title="🎯 Understanding Quantitative Scoring">
             <TechScoreInfoContent />
           </InfoModal>
 
@@ -805,7 +1075,7 @@
                         <th className="px-3 py-3 text-left text-xs uppercase">24H Change</th>
                         <th className="px-3 py-3 text-left text-xs uppercase hidden md:table-cell">Market Cap</th>
                         <th className="px-3 py-3 text-left text-xs uppercase">RSI</th>
-                        <th className="px-3 py-3 text-left text-xs uppercase">Score</th>
+                        <th className="px-3 py-3 text-left text-xs uppercase">Quant Score</th>
                         <th className="px-3 py-3 text-left text-xs uppercase">Signal</th>
                       </tr>
                     </thead>
@@ -836,15 +1106,18 @@
                             {s.rsi}
                           </td>
                           <td className={`px-3 py-4 font-bold ${
-                            s.techScore >= 80 ? 'text-green-400' :
-                            s.techScore >= 60 ? 'text-yellow-400' : 'text-gray-400'
+                            s.quantScore >= 80 ? 'text-green-400' :
+                            s.quantScore >= 60 ? 'text-yellow-400' : 'text-gray-400'
                           }`}>
-                            {s.techScore}
+                            {s.quantScore}
                           </td>
                           <td className="px-3 py-4">
-                            <span className="bg-green-600 text-green-100 px-2 py-1 rounded text-xs font-medium">
-                              {s.prediction}
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <span className={`bg-${s.signalColor} text-white px-2 py-1 rounded text-xs font-medium`}>
+                                {s.prediction}
+                              </span>
+                              <span className="text-xs text-gray-400">{s.confidence}</span>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -909,13 +1182,12 @@
                             {s.rsi}
                           </td>
                           <td className="px-3 py-4">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              s.prediction.includes('Buy') ? 'bg-green-600 text-green-100' : 
-                              s.prediction === 'Hold' ? 'bg-yellow-600 text-yellow-100' :
-                              'bg-red-600 text-red-100'
-                            }`}>
-                              {s.prediction}
-                            </span>
+                            <div className="flex flex-col gap-1">
+                              <span className={`bg-${s.signalColor} text-white px-2 py-1 rounded text-xs font-medium`}>
+                                {s.prediction}
+                              </span>
+                              <span className="text-xs text-gray-400">{s.confidence}</span>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -945,7 +1217,7 @@
                       <th className="px-3 py-3 text-left text-xs uppercase hidden lg:table-cell">6M High</th>
                       <th className="px-3 py-3 text-left text-xs uppercase hidden md:table-cell">Market Cap</th>
                       <th className="px-3 py-3 text-left text-xs uppercase">RSI</th>
-                      <th className="px-3 py-3 text-left text-xs uppercase">Score</th>
+                      <th className="px-3 py-3 text-left text-xs uppercase">Quant Score</th>
                       <th className="px-3 py-3 text-left text-xs uppercase">Signal</th>
                     </tr>
                   </thead>
@@ -978,19 +1250,18 @@
                           {s.rsi}
                         </td>
                         <td className={`px-3 py-4 font-bold ${
-                          s.techScore >= 80 ? 'text-green-400' :
-                          s.techScore >= 60 ? 'text-yellow-400' : 'text-gray-400'
+                          s.quantScore >= 80 ? 'text-green-400' :
+                          s.quantScore >= 60 ? 'text-yellow-400' : 'text-gray-400'
                         }`}>
-                          {s.techScore}
+                          {s.quantScore}
                         </td>
                         <td className="px-3 py-4">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${
-                            s.prediction.includes('Buy') ? 'bg-green-600 text-green-100' :
-                            s.prediction === 'Hold' ? 'bg-yellow-600 text-yellow-100' :
-                            'bg-red-600 text-red-100'
-                          }`}>
-                            {s.prediction}
-                          </span>
+                          <div className="flex flex-col gap-1">
+                            <span className={`bg-${s.signalColor} text-white px-2 py-1 rounded text-xs font-medium`}>
+                              {s.prediction}
+                            </span>
+                            <span className="text-xs text-gray-400">{s.confidence}</span>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1031,11 +1302,11 @@
             {/* Tech Score Explanation with Info Button */}
             <div className="flex items-center justify-center gap-2 text-xs">
               <div className="flex items-center gap-2 bg-gray-800 px-4 py-2 rounded-lg">
-                <span className="text-gray-300">Tech Score: RSI + Momentum + Moving Averages + Volatility + Market Cap</span>
+                <span className="text-gray-300">Quant Score: Multi-Factor Model (Momentum + Mean Reversion + Trend + Risk-Adjusted + Value)</span>
                 <button 
                   onClick={() => setShowScoreInfo(true)}
                   className="ml-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold transition-colors"
-                  title="Learn more about Tech Score"
+                  title="Learn more about Quantitative Scoring"
                 >
                   ?
                 </button>
